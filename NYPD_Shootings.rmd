@@ -1,0 +1,253 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+# **NYPD Shooting Incident Data (Historic)**
+Metadata Updated: November 10, 2020
+
+List of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year.
+
+This is a breakdown of every shooting incident that occurred in NYC going back to 2006 through the end of 
+the previous calendar year. This data is manually extracted every quarter and reviewed by the Office of 
+Management Analysis and Planning before being posted on the NYPD website. Each record represents a shooting 
+incident in NYC and includes information about the event, the location and time of occurrence. In addition, 
+information related to suspect and victim demographics is also included. 
+
+  **<u>Source: </u>** Data.GOV
+  
+  **<u>Datafile location:</u>**  https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD
+  
+  **<u>Datafile Name:</u>**  NYPD_Shooting_Incident_Data__Historic_.csv
+
+
+## Loading Necesary Packages and Data File:
+ 
+ ... Define Package load Function
+```{r load_pkgs, echo=FALSE, include=FALSE}
+pkg_install <- function (Package_List) 
+{   
+    
+    # convert arguments to vector
+    packages <- Package_List
+    
+    # start loop to determine if each package is installed
+    for(package in packages){
+        
+        if(package %in% (.packages()))
+        {
+            # message(package," is already loaded") 
+        }
+        else 
+        {
+            # if package is installed locally, load
+            if(package %in% rownames(installed.packages()))
+            {
+                # message("Loading Package: ",package) 
+                do.call('library', list(package))
+            }
+            # if package is not installed locally, download, then load
+            else 
+            {
+                # message("Installing Package: ",package) 
+                install.packages(package)
+                # message("Loading Package: ",package) 
+                do.call("library", list(package))
+            }
+        }
+    } 
+}
+
+```
+  ... Load packages
+```{r Package_loading, echo=TRUE}
+Packages_List_DS_Class <- c("psych", "stats", "lavaan", "tidyverse", "odbc", "lubridate", "Hmisc","summarytools","scales")
+pkg_install(Packages_List_DS_Class)
+
+```
+ ... data importing: NYPD Shooting data and Borough population data 
+```{r NYPD_Data, echo=TRUE}
+NYPD_Shooting_Datafile_location <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+NYPD_Shooting_Data <- read.csv(NYPD_Shooting_Datafile_location)
+```
+ 
+  ... Check Data values in each field
+```{r checking_data, echo=TRUE}
+ describe(NYPD_Shooting_Data)
+```
+
+... change data types
+
+ ```{r Modify_Classes}
+ NYPD_Shooting_Data$INCIDENT_KEY <- as.character(NYPD_Shooting_Data$INCIDENT_KEY)
+ NYPD_Shooting_Data$PRECINCT <- as.character(NYPD_Shooting_Data$PRECINCT)
+ NYPD_Shooting_Data$JURISDICTION_CODE <- as.character(NYPD_Shooting_Data$JURISDICTION_CODE) 
+ ```
+ 
+ ... change appropriate fields to factors for Shooting data an Population data
+ 
+```{r Fields_to_factors, echo=TRUE}
+Factor_Fields_shooting_Data <- c("BORO","PRECINCT","JURISDICTION_CODE","STATISTICAL_MURDER_FLAG","VIC_AGE_GROUP","VIC_SEX","VIC_RACE","PERP_RACE","PERP_SEX","PERP_AGE_GROUP")
+NYPD_Shooting_Data[,Factor_Fields_shooting_Data] <- lapply(NYPD_Shooting_Data[,Factor_Fields_shooting_Data] , factor) 
+
+
+```
+ 
+ ... Remove fields due to missing data for shooting data: LOCATION_DESC, PERP_AGE_GROUP, PERP_SEX
+```{r Remove_Fields, echo=FALSE}
+NYPD_Fields_To_Remove <- c("LOCATION_DESC", "PERP_AGE_GROUP", "PERP_SEX")
+NYPD_Shooting_Data_Subset <- NYPD_Shooting_Data[ , ! names(NYPD_Shooting_Data) %in% NYPD_Fields_To_Remove] 
+
+```
+
+ ... rename fields for data joining and readability
+ 
+```{r rename_fields, echo=FALSE}
+NYPD_Shooting_Data <- rename(NYPD_Shooting_Data, Borough_Name = BORO)
+NYPD_Shooting_Data_Subset <- rename(NYPD_Shooting_Data_Subset, Borough_Name = BORO)
+``` 
+
+
+## **Analysis by Victim race of Black/African American**
+
+
+
+ ... stacked bar chart Victim by race and borough
+ 
+```{r Victim_by_race}
+ggplot(NYPD_Shooting_Data_Subset, aes(x=VIC_RACE, fill=Borough_Name)) + geom_bar() + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) + ggtitle("Victim by Race and Borough")
+```
+
+
+**Percentage of Victim totals by Race**
+
+```{r cal_vic_race_totals,echo=TRUE}
+VIC_Race_Percentages <- NYPD_Shooting_Data_Subset  %>% group_by(VIC_RACE) %>% summarise(Count = length(VIC_RACE),Total = sum(length(NYPD_Shooting_Data_Subset$VIC_RACE), na.rm = TRUE),Percent = (length(VIC_RACE)) / sum(length(NYPD_Shooting_Data_Subset$VIC_RACE), na.rm = TRUE))
+VIC_Race_Percentages$Percentages <- percent(VIC_Race_Percentages$Percent) 
+knitr::kable(VIC_Race_Percentages, align = 'c')
+```
+
+## Initial Findings
+
+We notice a rather large percentage of the shootings involve victims that have a racial value of 
+Black or African American and many of the shootings occurring in Brooklyn.
+
+A review of the population breakdown might help see if this trend is due to the racial make
+up of the boroughs themselves
+
+A good downloadable dataset by borough was not readily available in a friendly import format or had 
+issues on data accuracy depending on the source due to limited funding scopes as noted on the New York data website
+
+The data with population and percentage breakdowns have been extracted from the file found here:
+
+https://www1.nyc.gov/assets/planning/download/office/data-maps/nyc-population/acs/demo_2016acs5yr_nyc.xlsx
+
+This is 2016 data and show the total black population for each Borough with the percentage that makes up of the 
+total population there in that borough
+
+**Black or African American Population break down by total and Percentage in each Bourough and New York itself**
+
+Borough        |  Population        |  Percent Total
+-------------- | ------------------ | ----------------		
+Bronx 	       | Estimate	476,525   |  Percent	33.2%
+Brooklyn	     | Estimate	871,223   |  Percent	33.4%
+Manhattan	     | Estimate	244,787   |  Percent	15.0%
+Queens 	       | Estimate	423,451   |  Percent	18.3%
+Staten Island  | Estimate	48,941    |  Percent	10.3%
+New York city	 | Estimate	2,064,927 |  Percent	24.4%
+
+## Further Analysis
+
+While the percentage of black/African American victims was at 71%, none of the Boroughs
+show a population near that high to warrant the victim racial identity of Black/African American being
+so high.
+
+Further review below shows more graphical breakdowns of Victim by Age group and Gender with comparable 
+racial graph of the Perpetrator's race which appears to mirror the victim's race.
+
+The perpetrator's racial data though suffers from a large amount of it being empty and does not 
+give use good feel if racially motivated violence is going on or not. 
+
+Looks like we need better view by Borough from a race perspective
+
+
+... **Graphs**
+ 
+ ... Victim by Age Group
+ 
+```{r Victim_by_Age_Group, echo=FALSE}
+ggplot(NYPD_Shooting_Data_Subset, aes(x=VIC_AGE_GROUP, fill=Borough_Name)) + geom_bar() + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) + ggtitle("Victim by Age and Borough")
+```
+ 
+ 
+
+  ... Victim by Gender 
+  
+```{r Victim_by_Gender, echo=FALSE}
+ggplot(NYPD_Shooting_Data_Subset, aes(x=VIC_SEX, fill=Borough_Name)) + geom_bar() + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) + ggtitle("Victim by Gender and Borough")
+```
+ 
+ 
+
+  ... Victim by Perp Race 
+  
+```{r Victim_by_Perp_Race, echo=FALSE}
+ggplot(NYPD_Shooting_Data_Subset, aes(x=PERP_RACE, fill=Borough_Name)) + geom_bar() + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+```
+
+The 3 previous graphs kind of lead us in circle and still show that race seems to be an issue.
+We might be better served by again taking population in account.
+
+
+```{r Black_Victim_Race_Total, echo=TRUE}
+ VIC_Race_Black_Total <- NYPD_Shooting_Data_Subset  %>% filter(VIC_RACE %in% c("BLACK HISPANIC","BLACK")) %>% summarise(Count = length(VIC_RACE))
+```
+```{r Black_Vick_Race_Total, echo=TRUE}
+VIC_Race_Black_Total <- NYPD_Shooting_Data_Subset  %>% filter(VIC_RACE %in% c("BLACK HISPANIC","BLACK")) %>% summarise(Count = length(VIC_RACE))  
+```
+```{r Create_NY_Pop_Set, echo=TRUE}
+NY_Black_Pop = data.frame(
+     Borough_Name = c("Bronx", "Brooklyn", "Manhattan", "Queens","Staten Island"),
+     Black_Population = c(476525, 871223, 244787,423451,48941)
+)
+NY_Black_Pop_Total <- sum(NY_Black_Pop$Black_Population)
+```
+```{r show_Black_NY_pop, echo=TRUE}
+Black_Race_percent <- (VIC_Race_Black_Total/NY_Black_Pop_Total)
+```
+
+**Black Victim Total:** `r prettyNum(VIC_Race_Black_Total, big.mark = ",", scientific = FALSE)`
+
+**Black population Total:** `r prettyNum(NY_Black_Pop_Total, big.mark = ",", scientific = FALSE)`
+
+**Black Victim Race as percent of Black Population:** `r percent(Black_Race_percent$Count, accuracy = 0.3)`
+
+
+
+## Conclusion
+
+  The data does leave several things open for questioning:
+  
+   1) While the victim rate for Black/African Americans is high, another breakdown by 
+      victims per incident may be useful to denote how often these are isolated incidents
+      versus a gang related incident maybe involving a rapid fire type of weapon.
+
+   2) No indication in the data of what type of incident it was. Usually there is an initial call
+      into police for domestic violence, burglary in process...etc. There is a location field
+      but, it is missing a lot of the times does not give us any insight into the incident itself.
+      
+   3) Bias: This limited overview might lead one to believe it's a just a black on black violence thing. 
+      But, would be a definite problem due to it being biased report that focused just on the victim's
+      race being Black/African American and blamed the color of their skin for reason behind the shootings. 
+
+   4) The final comparison of Black Victim's race total to the Black population in NY brings better
+      perspective to the high Percentage breakouts when just looking at race in this set only.
+      One's view becomes skewed and misses part of the bigger picture
+      
+   5) More socioeconomic data could be incorporated to highlight disparities between Boroughs. Many 
+      times crime is tied to areas that have a lower economic status rather than race being the issue.
+      This would help focus on actual problems leading to the shootings and help mitigate the bias in
+      it's limited focus.
+      
